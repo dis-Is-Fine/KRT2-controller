@@ -33,3 +33,9 @@ int serial_read(char* buf, int buf_size) {
     return n_bytes;
 
 }
+
+void serial_end() {
+
+    close(serial_port);
+
+}
