@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <termios.h>
 
-void serial_init(char* file);
+int serial_init(char* file, int baud);
 int serial_write(char* msg, int size);
-int serial_read(char* buf, int buf_size);
+int serial_read(char* buf, int buf_size, int required_bytes);
+int non_canonical_set(int min_bytes, int max_time);
+int serial_readB(char* buf);
