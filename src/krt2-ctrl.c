@@ -1,15 +1,15 @@
 #include "krt2-ctrl.h"
 
-struct KRT2_frequency* frequency;
-struct KRT2_communication* communication;
+struct KRT2_frequency* _frequency;
+struct KRT2_communication* _communication;
 static char ACK = 0x06;
 static char NAK = 0x15;
 
 int krt_init(char* file, struct KRT2_frequency* freq,
             struct KRT2_communication* comm) {
 
-    frequency = freq;
-    communication = comm;
+    _frequency = freq;
+    _communication = comm;
     
     if(serial_init(file, B9600) < 0) {
         return -1;
@@ -53,15 +53,15 @@ int krt_check() {
     }
 
     switch(buf[0]) {
-        case 'U': new_active_frequency();
-        case 'R': new_stby_frequency();
-        case 'A': new_communication_cfg();
-        case '2': new_PTT();
-        case '3': new_intercom_vol();
-        case '4': new_ext_audio_vol();
-        case '1': new_sidetone();
-        case '8': communication->spacing = SPACING833;
-        case '6': communication->spacing = SPACING25;
+        case _ACT_FREQ: new_active_frequency();
+        case _STBY_FREQ: new_stby_frequency();
+        case _COMM_CFG: new_communication_cfg();
+        case _PTT: new_PTT();
+        case _IC_VOL: new_intercom_vol();
+        case _EXT_VOL: new_ext_audio_vol();
+        case _SIDETONE: new_sidetone();
+        case _SPACING833: _communication->spacing = _SPACING833;
+        case _SPACING25: _communication->spacing = _SPACING25;
     }
 
     return 0;
@@ -76,10 +76,10 @@ int new_active_frequency(){
         serial_write(&NAK, 1);
         return -1;
     }
-    frequency->active_frequency = buf[0];
-    frequency->active_channel = buf[1];
+    _frequency->active_frequency = buf[0];
+    _frequency->active_channel = buf[1];
     for(int i = 0; i < 8; i++) {
-        frequency->active_name[i] = buf[i+2];
+        _frequency->active_name[i] = buf[i+2];
     }
     serial_write(&ACK, 1);
     return 0;
@@ -94,10 +94,10 @@ int new_stby_frequency(){
         serial_write(&NAK, 1);
         return -1;
     }
-    frequency->stby_frequency = buf[0];
-    frequency->stby_channel = buf[1];
+    _frequency->stby_frequency = buf[0];
+    _frequency->stby_channel = buf[1];
     for(int i = 0; i < 8; i++) {
-        frequency->stby_name[i] = buf[i+2];
+        _frequency->stby_name[i] = buf[i+2];
     }
     serial_write(&ACK, 1);
     return 0;
@@ -111,9 +111,9 @@ int new_communication_cfg(){
         serial_write(&NAK, 1);
         return -1;
     }
-    communication->volume = buf[0];
-    communication->squelch = buf[1];
-    communication->intercom_squelch = buf[2];
+    _communication->volume = buf[0];
+    _communication->squelch = buf[1];
+    _communication->intercom_squelch = buf[2];
     serial_write(&ACK, 1);
     return 0;
 }
@@ -122,7 +122,7 @@ int new_PTT(){
     char buf;
     non_canonical_set(1, 10);
     serial_read(&buf, 1, 1);
-    communication->PTT = buf;
+    _communication->PTT = buf;
     serial_write(&ACK, 1);
     return 0;
 }
@@ -131,7 +131,7 @@ int new_intercom_vol(){
     char buf;
     non_canonical_set(1, 10);
     serial_read(&buf, 1, 1);
-    communication->intercom_volume = buf;
+    _communication->intercom_volume = buf;
     serial_write(&ACK, 1);
     return 0;
 }
@@ -140,7 +140,7 @@ int new_ext_audio_vol(){
     char buf;
     non_canonical_set(1, 10);
     serial_read(&buf, 1, 1);
-    communication->external_input = buf;
+    _communication->external_input = buf;
     serial_write(&ACK, 1);
     return 0;
 }
@@ -149,8 +149,67 @@ int new_sidetone(){
     char buf;
     non_canonical_set(1, 10);
     serial_read(&buf, 1, 1);
-    communication->sidetone = buf;
+    _communication->sidetone = buf;
     serial_write(&ACK, 1);
     return 0;
 }
 
+int set_active_frequency(int frequency, int channel, char name[8]){
+    char buf[13];
+    char response = 0;
+    int attempts = 0;
+    non_canonical_set(1, 10);
+
+    buf[0] = 0x02;
+    buf[1] = _ACT_FREQ;
+    buf[2] = frequency;
+    buf[3] = channel;
+    for(int i = 0; i < 8; i++){
+        buf[i+4] = name[i];
+    }
+    buf[13] = buf[0] ^ buf[1];
+
+    while(response != ACK && attempts++ < 3) {
+        serial_write(buf, 11);
+        serial_read(&response, 1, 1);
+    }
+    if(attempts >= 3){
+        return -1;
+    }
+    _frequency->active_frequency = frequency;
+    _frequency->active_channel = channel;
+    for(int i = 0; i < 8; i++){
+        _frequency->active_name[i] = name[i];
+    }
+    return 0;    
+}
+
+int set_stby_frequency(int frequency, int channel, char name[8]){
+    char buf[13];
+    char response = 0;
+    int attempts = 0;
+    non_canonical_set(1, 10);
+
+    buf[0] = 0x02;
+    buf[1] = _STBY_FREQ;
+    buf[2] = frequency;
+    buf[3] = channel;
+    for(int i = 0; i < 8; i++){
+        buf[i+4] = name[i];
+    }
+    buf[13] = buf[0] ^ buf[1];
+
+    while(response != ACK && attempts++ < 3) {
+        serial_write(buf, 11);
+        serial_read(&response, 1, 1);
+    }
+    if(attempts >= 3){
+        return -1;
+    }
+    _frequency->stby_frequency = frequency;
+    _frequency->stby_channel = channel;
+    for(int i = 0; i < 8; i++){
+        _frequency->stby_name[i] = name[i];
+    }
+    return 0;    
+}
