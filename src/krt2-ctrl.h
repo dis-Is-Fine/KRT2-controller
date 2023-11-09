@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include "serial.h"
 
+#define SPACING833 0
+#define SPACING25 1
+
 struct KRT2_frequency {
     char active_frequency;
     char active_channel;
@@ -18,6 +21,7 @@ struct KRT2_communication {
     char external_input;
     char sidetone;
     char PTT;
+    char spacing;
 };
 
 int krt_init(char* file, struct KRT2_frequency* frequency,

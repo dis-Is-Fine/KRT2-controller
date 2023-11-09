@@ -60,6 +60,8 @@ int krt_check() {
         case '3': new_intercom_vol();
         case '4': new_ext_audio_vol();
         case '1': new_sidetone();
+        case '8': communication->spacing = SPACING833;
+        case '6': communication->spacing = SPACING25;
     }
 
     return 0;
