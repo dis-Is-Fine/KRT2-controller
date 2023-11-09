@@ -55,6 +55,11 @@ int krt_check() {
     switch(buf[0]) {
         case 'U': new_active_frequency();
         case 'R': new_stby_frequency();
+        case 'A': new_communication_cfg();
+        case '2': new_PTT();
+        case '3': new_intercom_vol();
+        case '4': new_ext_audio_vol();
+        case '1': new_sidetone();
     }
 
     return 0;
@@ -95,3 +100,55 @@ int new_stby_frequency(){
     serial_write(&ACK, 1);
     return 0;
 }
+
+int new_communication_cfg(){
+    char buf[4];
+    non_canonical_set(4, 10);
+    serial_read(buf, 4, 4);
+    if(buf[1] + buf[2] != buf[3]){
+        serial_write(&NAK, 1);
+        return -1;
+    }
+    communication->volume = buf[0];
+    communication->squelch = buf[1];
+    communication->intercom_squelch = buf[2];
+    serial_write(&ACK, 1);
+    return 0;
+}
+
+int new_PTT(){
+    char buf;
+    non_canonical_set(1, 10);
+    serial_read(&buf, 1, 1);
+    communication->PTT = buf;
+    serial_write(&ACK, 1);
+    return 0;
+}
+
+int new_intercom_vol(){
+    char buf;
+    non_canonical_set(1, 10);
+    serial_read(&buf, 1, 1);
+    communication->intercom_volume = buf;
+    serial_write(&ACK, 1);
+    return 0;
+}
+
+int new_ext_audio_vol(){
+    char buf;
+    non_canonical_set(1, 10);
+    serial_read(&buf, 1, 1);
+    communication->external_input = buf;
+    serial_write(&ACK, 1);
+    return 0;
+}
+
+int new_sidetone(){
+    char buf;
+    non_canonical_set(1, 10);
+    serial_read(&buf, 1, 1);
+    communication->sidetone = buf;
+    serial_write(&ACK, 1);
+    return 0;
+}
+
