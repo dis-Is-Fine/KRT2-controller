@@ -5,7 +5,7 @@ struct termios tty;
 
 int serial_init(char* file, int baud) {
 
-    serial_port = open(file, O_RDWR | O_NDELAY | O_NOCTTY);
+    serial_port = open(file, O_RDWR | O_NOCTTY);
 
     if (serial_port < 0) {
         perror("Error while opening serial port file");
@@ -17,13 +17,14 @@ int serial_init(char* file, int baud) {
     tty.c_cflag &= ~CSTOPB;
     tty.c_cflag &= ~CSIZE;
     tty.c_cflag |= CS8;
-    tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    tty.c_lflag &= ~(ECHO | ECHOE);
+    tty.c_lflag &= ~ICANON;
     tty.c_iflag &= ~(IXON | IXOFF | IXANY);
     tty.c_cflag &= ~CRTSCTS;
     tty.c_oflag &= ~OPOST;
 
-    // tty.c_cc[VTIME] = 100;
-    // tty.c_cc[VMIN] = 0;
+    tty.c_cc[VTIME] = 30;
+    tty.c_cc[VMIN] = 0;
 
     if(cfsetspeed(&tty, baud) < 0) {
         perror("Error while setting baud rate");
@@ -60,10 +61,8 @@ int serial_write(char* msg, int size) {
 int serial_read(char* buf, int buf_size, int required_bytes) {
 
     int n_bytes = 0;
-    while (n_bytes < required_bytes)
-    {
-       n_bytes = read(serial_port, buf, buf_size);
-    }
+    n_bytes = read(serial_port, buf, buf_size);
+    if(n_bytes < 0) perror("fuck"); printf("%i\n", n_bytes);
     return n_bytes;
 
 }

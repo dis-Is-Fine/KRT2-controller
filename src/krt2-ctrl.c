@@ -19,41 +19,40 @@ int krt_init(char* file, struct KRT2_frequency* frequency,
     }
     /* respond back with any ASCII character */    
     serial_write("C", 1);
-
-
+    
     return 0;
 }
 
-// int krt_check() {
+int krt_check() {
 
-//     char buf[20];
-//     int n_bytes;
+    char buf[20];
+    int n_bytes;
 
-//     do {
-//         n_bytes = serial_readB(buf);
+    do {
+        n_bytes = serial_readB(buf);
 
-//         if(n_bytes < 0) {
-//             printf("Error while reading from serial port", stderr);
-//             return -1;
-//         }
+        if(n_bytes < 0) {
+            fprintf(stderr, "Error while reading from serial port");
+            return -1;
+        }
 
-//         if(n_bytes == 0) {
-//             return 0;
-//         }
+        if(n_bytes == 0) {
+            return 0;
+        }
 
-//     } while(buf[0] != 0x02); /* Each KRT2 transmition starts with STX (0x02) */
+    } while(buf[0] != 0x02); /* Each KRT2 transmition starts with STX (0x02) */
     
-//     n_bytes = serial_readB(buf);
-//     if(n_bytes <= 0) {
-//         printf("Error while reading from serial port", stderr);
-//         return -1;
-//     }
+    n_bytes = serial_readB(buf);
+    if(n_bytes <= 0) {
+        fprintf(stderr, "Error while reading from serial port");
+        return -1;
+    }
 
-//     if(buf[0] != 0x02) {
-//         printf("Invalid data recieved", stderr);
-//         return -1;
-//     }
+    if(buf[0] != 0x02) {
+        fprintf(stderr, "Invalid data recieved");
+        return -1;
+    }
 
+    return 0;
 
-
-// }
+}
