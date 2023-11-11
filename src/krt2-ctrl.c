@@ -5,6 +5,14 @@ struct KRT2_communication* _communication;
 static char ACK = 0x06;
 static char NAK = 0x15;
 
+int new_active_frequency(); int new_stby_frequency(); int new_communication_cfg();
+int new_PTT(); int new_intercom_vol(); int new_ext_audio_vol(); int new_sidetone();
+int set_active_frequency(char frequency, char channel, char name[8]);
+int set_stby_frequency(char frequency, char channel, char name[8]);
+int set_new_communication_cfg(char volume, char squelch, char intercom_squelch);
+int set_PTT(char PTT); int set_intercom_vol(char volume);
+int set_ext_audio_vol(char ext_volume); int set_sidetone(char sidetone);
+
 int krt_init(char* file, struct KRT2_frequency* freq,
             struct KRT2_communication* comm) {
 
@@ -16,7 +24,7 @@ int krt_init(char* file, struct KRT2_frequency* freq,
     }
     
     char buf[1];
-    int n_bytes = serial_readB(buf);
+    if(serial_readB(buf) < 0) return -1;
 
     /* KRT2 radio sends 'S' repeatedly while waiting for connection */
     if(*buf != 'S') {
@@ -70,8 +78,8 @@ int krt_check() {
 int new_active_frequency(){
     char buf[11];
     non_canonical_set(11, 10);
-    serial_read(buf, 11, 11);
-    if(buf[0] ^ buf[1] != buf [10]) {
+    serial_read(buf, 11);
+    if((buf[0] ^ buf[1]) != buf [10]) {
         char msg = 0x15;
         serial_write(&NAK, 1);
         return -1;
@@ -88,8 +96,8 @@ int new_active_frequency(){
 int new_stby_frequency(){
     char buf[11];
     non_canonical_set(11, 10);
-    serial_read(buf, 11, 11);
-    if(buf[0] ^ buf[1] != buf [10]) {
+    serial_read(buf, 11);
+    if((buf[0] ^ buf[1]) != buf [10]) {
         char msg = 0x15;
         serial_write(&NAK, 1);
         return -1;
@@ -106,7 +114,7 @@ int new_stby_frequency(){
 int new_communication_cfg(){
     char buf[4];
     non_canonical_set(4, 10);
-    serial_read(buf, 4, 4);
+    serial_read(buf, 4);
     if(buf[1] + buf[2] != buf[3]){
         serial_write(&NAK, 1);
         return -1;
@@ -121,7 +129,7 @@ int new_communication_cfg(){
 int new_PTT(){
     char buf;
     non_canonical_set(1, 10);
-    serial_read(&buf, 1, 1);
+    serial_read(&buf, 1);
     _communication->PTT = buf;
     serial_write(&ACK, 1);
     return 0;
@@ -130,7 +138,7 @@ int new_PTT(){
 int new_intercom_vol(){
     char buf;
     non_canonical_set(1, 10);
-    serial_read(&buf, 1, 1);
+    serial_read(&buf, 1);
     _communication->intercom_volume = buf;
     serial_write(&ACK, 1);
     return 0;
@@ -139,7 +147,7 @@ int new_intercom_vol(){
 int new_ext_audio_vol(){
     char buf;
     non_canonical_set(1, 10);
-    serial_read(&buf, 1, 1);
+    serial_read(&buf, 1);
     _communication->external_input = buf;
     serial_write(&ACK, 1);
     return 0;
@@ -148,17 +156,14 @@ int new_ext_audio_vol(){
 int new_sidetone(){
     char buf;
     non_canonical_set(1, 10);
-    serial_read(&buf, 1, 1);
+    serial_read(&buf, 1);
     _communication->sidetone = buf;
     serial_write(&ACK, 1);
     return 0;
 }
 
-int set_active_frequency(int frequency, int channel, char name[8]){
+int set_active_frequency(char frequency, char channel, char name[8]){
     char buf[13];
-    char response = 0;
-    int attempts = 0;
-    non_canonical_set(1, 10);
 
     buf[0] = 0x02;
     buf[1] = _ACT_FREQ;
@@ -169,13 +174,8 @@ int set_active_frequency(int frequency, int channel, char name[8]){
     }
     buf[13] = buf[0] ^ buf[1];
 
-    while(response != ACK && attempts++ < 3) {
-        serial_write(buf, 11);
-        serial_read(&response, 1, 1);
-    }
-    if(attempts >= 3){
-        return -1;
-    }
+    if(send_data(buf, 13, 3) < 0) return -1;
+
     _frequency->active_frequency = frequency;
     _frequency->active_channel = channel;
     for(int i = 0; i < 8; i++){
@@ -184,11 +184,8 @@ int set_active_frequency(int frequency, int channel, char name[8]){
     return 0;    
 }
 
-int set_stby_frequency(int frequency, int channel, char name[8]){
+int set_stby_frequency(char frequency, char channel, char name[8]){
     char buf[13];
-    char response = 0;
-    int attempts = 0;
-    non_canonical_set(1, 10);
 
     buf[0] = 0x02;
     buf[1] = _STBY_FREQ;
@@ -199,17 +196,110 @@ int set_stby_frequency(int frequency, int channel, char name[8]){
     }
     buf[13] = buf[0] ^ buf[1];
 
-    while(response != ACK && attempts++ < 3) {
-        serial_write(buf, 11);
-        serial_read(&response, 1, 1);
-    }
-    if(attempts >= 3){
-        return -1;
-    }
+    if(send_data(buf, 13, 3) < 0) return -1;
+
     _frequency->stby_frequency = frequency;
     _frequency->stby_channel = channel;
     for(int i = 0; i < 8; i++){
         _frequency->stby_name[i] = name[i];
     }
     return 0;    
+}
+
+int set_new_communication_cfg(char volume, char squelch, char intercom_squelch){
+    char buf[6];
+
+    buf[0] = 0x02;
+    buf[1] = _COMM_CFG;
+    buf[2] = volume;
+    buf[3] = squelch;
+    buf[4] = intercom_squelch;
+    buf[5] = squelch ^ intercom_squelch;
+
+    if(send_data(buf, 6, 3) < 0) return -1;
+
+    _communication->volume = volume;
+    _communication->squelch = squelch;
+    _communication->intercom_squelch = intercom_squelch;
+
+    return 0;
+}
+
+int set_PTT(char PTT){
+    char buf[3];
+    
+    buf[0] = 0x02;
+    buf[1] = _PTT;
+    buf[2] = PTT;
+
+    if(send_data(buf, 3, 3) < 0) return -1;
+
+    _communication->PTT = PTT;
+
+    return 0;
+}
+
+int set_intercom_vol(char volume) {
+    char buf[3];
+
+    buf[0] = 0x02;
+    buf[1] = _IC_VOL;
+    buf[2] = volume;
+
+    if(send_data(buf, 3, 3) < 0) return -1;
+
+    _communication->intercom_volume = volume;
+
+    return 0;
+}
+
+int set_ext_audio_vol(char ext_volume) {
+
+  char buf[3];
+
+  buf[0] = 0x02; 
+  buf[1] = _EXT_VOL;
+  buf[2] = ext_volume;
+
+  if(send_data(buf, 3, 3) < 0) return -1;
+
+  _communication->external_input = ext_volume;
+
+  return 0;
+}
+
+int set_sidetone(char sidetone) {
+
+  char buf[3];
+
+  buf[0] = 0x02;
+  buf[1] = _SIDETONE;
+  buf[2] = sidetone;
+
+  if(send_data(buf, 3, 3) < 0) return -1;
+
+  _communication->sidetone = sidetone;
+
+  return 0; 
+}
+
+int send_data(char* buf, int size, int max_attempts) {
+    char response = 0;
+    int attempts = 0;
+    
+    if(max_attempts > 0){
+        non_canonical_set(1,10);
+        while(response != ACK && attempts++ < max_attempts) {
+            serial_write(buf, size);
+            serial_readB(&response);
+        }
+        if(attempts >= max_attempts) {
+            return -1;
+        }
+        return 0;
+    }
+
+    serial_write(buf, size);
+
+    return 0;
 }

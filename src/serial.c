@@ -58,17 +58,16 @@ int serial_write(char* msg, int size) {
 
 }
 
-int serial_read(char* buf, int buf_size, int required_bytes) {
+int serial_read(char* buf, int buf_size) {
 
-    int n_bytes = 0;
-    n_bytes = read(serial_port, buf, buf_size);
-    if(n_bytes < 0) perror("fuck"); printf("%i\n", n_bytes);
+    int n_bytes = read(serial_port, buf, buf_size);
+    if(n_bytes < 0) perror("Error while reading from serial port");
     return n_bytes;
 
 }
 
 int serial_readB(char* buf) {
-    return(serial_read(buf, 1, 1));
+    return(serial_read(buf, 1));
 }
 
 void serial_end() {
