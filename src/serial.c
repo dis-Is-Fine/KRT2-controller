@@ -3,15 +3,13 @@
 int serial_port;
 struct termios tty;
 
+/* Initializes serial port from 'file' file
+ and with 'baud' baudrate (baudrates are defined in termios.h)
+ returns 0 on success and -1 on fault */
 int serial_init(char* file, int baud) {
 
-    serial_port = open(file, O_RDWR | O_NOCTTY);
+    CHECKa(open(file, O_RDWR | O_NOCTTY), &serial_port);
 
-    if (serial_port < 0) {
-        perror("Error while opening serial port file");
-        return -1;
-    }
-    
     tty.c_cflag |= (CLOCAL | CREAD);
     tty.c_cflag &= ~PARENB;
     tty.c_cflag &= ~CSTOPB;
@@ -26,50 +24,59 @@ int serial_init(char* file, int baud) {
     tty.c_cc[VTIME] = 30;
     tty.c_cc[VMIN] = 0;
 
-    if(cfsetspeed(&tty, baud) < 0) {
-        perror("Error while setting baud rate");
-        return -1;
-    }
+    CHECK(cfsetspeed(&tty, baud));
 
-    if(tcsetattr(serial_port, TCSANOW, &tty) < 0) {
-        perror("Error while saving attributes");
-        return -1;
-    }
+    CHECK(tcsetattr(serial_port, TCSANOW, &tty));
 
     return 0;
 }
 
+/* Sets how to handle non-canonical reads
+ 'min_bytes describes c_cc VMIN
+ 'max_time describes c_cc VTIME
+  refer to termios manual for more info 
+  returns 0 on success and -1 on fault */
 int non_canonical_set(int min_bytes, int max_time) {
     tty.c_cc[VTIME] = max_time;
     tty.c_cc[VMIN] = min_bytes;
     
-    if(tcsetattr(serial_port, TCSANOW, &tty) < 0) {
-        perror("Error while saving attributes");
-        return -1;
-    }
+    CHECK(tcsetattr(serial_port, TCSANOW, &tty));
 
     return 0;
 }
 
+/* Writes 'size' bytes from 'msg' to serial port
+ returns number of bytes written 
+ in case of fault returns -1 */
 int serial_write(char* msg, int size) {
 
-    int n_bytes = write(serial_port, msg, size);
+    int n_bytes;
+    CHECKa(write(serial_port, msg, size), &n_bytes);
     return n_bytes;
 
 }
 
+/* Reads 'buf size' bytes into 'buf'
+  returns number of bytes read
+  before use non canonical reads should be configured
+  using non_canonical_set() - refer to termios manual
+  on fault returns -1 */
 int serial_read(char* buf, int buf_size) {
 
-    int n_bytes = read(serial_port, buf, buf_size);
-    if(n_bytes < 0) perror("Error while reading from serial port");
+    int n_bytes;
+    CHECKa(read(serial_port, buf, buf_size), &n_bytes);
     return n_bytes;
 
 }
 
+/* Reads byte of data into 'buf'
+  returns number of bytes read
+  on fault returns -1 */
 int serial_readB(char* buf) {
-    return(serial_read(buf, 1));
+    return serial_read(buf, 1);
 }
 
+/* Closes serial port */
 void serial_end() {
 
     close(serial_port);

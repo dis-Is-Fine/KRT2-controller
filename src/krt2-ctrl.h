@@ -14,10 +14,10 @@
 struct KRT2_frequency {
     char active_frequency;
     char active_channel;
-    char active_name[8];
+    char active_name[9];
     char stby_frequency;
     char stby_channel;
-    char stby_name[8];
+    char stby_name[9];
 };
 
 struct KRT2_communication {
@@ -33,3 +33,6 @@ struct KRT2_communication {
 
 int krt_init(char* file, struct KRT2_frequency* _frequency,
             struct KRT2_communication* _communication);
+
+char get_channel(int khz);
+int get_khz(char channel);

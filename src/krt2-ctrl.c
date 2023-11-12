@@ -19,12 +19,15 @@ int krt_init(char* file, struct KRT2_frequency* freq,
     _frequency = freq;
     _communication = comm;
     
-    if(serial_init(file, B9600) < 0) {
-        return -1;
-    }
+    CHECK(serial_init(file, B9600));
+    CHECK(non_canonical_set(1, 150));
     
     char buf[1];
-    if(serial_readB(buf) < 0) return -1;
+    int n_bytes;
+    int attempts = 0;
+    do {
+        CHECKa(serial_readB(buf), &n_bytes);
+    } while (n_bytes == 1 && attempts++ >= 3);
 
     /* KRT2 radio sends 'S' repeatedly while waiting for connection */
     if(*buf != 'S') {
@@ -38,25 +41,24 @@ int krt_init(char* file, struct KRT2_frequency* freq,
 
 int krt_check() {
 
-    char buf[20];
+    char buf[1];
     int n_bytes;
+    int attempts = 0;
 
     do {
         n_bytes = serial_readB(buf);
 
         if(n_bytes < 0) {
-            fprintf(stderr, "Error while reading from serial port");
-            return -1;
-        } else if(n_bytes == 0) {
-            fprintf(stderr, "Invalid data recieved");
             return -1;
         }
 
-    } while(buf[0] != 0x02); /* Each KRT2 transmition starts with STX (0x02) */
-    
+    } while(buf[0] != 0x02 && n_bytes != 0); /* Each KRT2 transmition starts with STX (0x02) */
+    printf("\n");
+
+    if(n_bytes == 0) return 0;
+
     n_bytes = serial_readB(buf);
     if(n_bytes <= 0) {
-        fprintf(stderr, "Error while reading from serial port");
         return -1;
     }
 
@@ -89,6 +91,7 @@ int new_active_frequency(){
     for(int i = 0; i < 8; i++) {
         _frequency->active_name[i] = buf[i+2];
     }
+    _frequency->active_name[9] = 0;
     serial_write(&ACK, 1);
     return 0;
 }
@@ -107,6 +110,7 @@ int new_stby_frequency(){
     for(int i = 0; i < 8; i++) {
         _frequency->stby_name[i] = buf[i+2];
     }
+    _frequency->active_name[9] = 0;
     serial_write(&ACK, 1);
     return 0;
 }
@@ -162,7 +166,7 @@ int new_sidetone(){
     return 0;
 }
 
-int set_active_frequency(char frequency, char channel, char name[8]){
+int set_active_frequency(char frequency, char channel, char name[9]){
     char buf[13];
 
     buf[0] = 0x02;
@@ -181,10 +185,11 @@ int set_active_frequency(char frequency, char channel, char name[8]){
     for(int i = 0; i < 8; i++){
         _frequency->active_name[i] = name[i];
     }
+    _frequency->active_name[9] = 0;
     return 0;    
 }
 
-int set_stby_frequency(char frequency, char channel, char name[8]){
+int set_stby_frequency(char frequency, char channel, char name[9]){
     char buf[13];
 
     buf[0] = 0x02;
@@ -203,6 +208,7 @@ int set_stby_frequency(char frequency, char channel, char name[8]){
     for(int i = 0; i < 8; i++){
         _frequency->stby_name[i] = name[i];
     }
+    _frequency->stby_name[9] = 0;
     return 0;    
 }
 
@@ -283,12 +289,39 @@ int set_sidetone(char sidetone) {
   return 0; 
 }
 
+int set_spacing(char spacing) {
+    char buf[2];
+
+    buf[0] = 0x02;
+    buf[1] = spacing;
+
+    if(send_data(buf, 2, 0) != 2) return -1;
+    
+    return 0;
+}
+
+char get_channel(int khz) {
+    if (khz % 25 == 20) {
+        khz = khz - 5;
+    }
+    int channel = khz / 5;
+    return channel;
+}
+
+int get_khz(char channel) {
+    return channel*5;
+}
+
+/* Sends 'size' bytes from 'buf' to KRT2 radio
+  If ACK response is required 'max_attempts' should be set
+  to how many attempts of writes to make
+  If ACK response is not required set 'max_attempts' to 0 */
 int send_data(char* buf, int size, int max_attempts) {
     char response = 0;
     int attempts = 0;
     
     if(max_attempts > 0){
-        non_canonical_set(1,10);
+        non_canonical_set(size,10);
         while(response != ACK && attempts++ < max_attempts) {
             serial_write(buf, size);
             serial_readB(&response);
