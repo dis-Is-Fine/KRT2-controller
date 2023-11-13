@@ -2,6 +2,7 @@
 
 struct KRT2_frequency* _frequency;
 struct KRT2_communication* _communication;
+char* KRT2_status;
 static char ACK = 0x06;
 static char NAK = 0x15;
 
@@ -15,23 +16,20 @@ int set_ext_audio_vol(char ext_volume); int set_sidetone(char sidetone);
 int send_data(char* buf, int size, int max_attempts);
 
 int krt_init(char* file, struct KRT2_frequency* freq,
-            struct KRT2_communication* comm) {
+            struct KRT2_communication* comm, char* status) {
 
     _frequency = freq;
     _communication = comm;
+    KRT2_status = status;
     
     CHECK(serial_init(file, B9600));
-    CHECK(non_canonical_set(1, 150));
+    CHECK(non_canonical_set(0, 50));
     
-    char buf[1];
-    int n_bytes;
-    int attempts = 0;
-    do {
-        CHECKa(serial_readB(buf), &n_bytes);
-    } while (n_bytes == 1 && attempts++ >= 3);
-
+    char buf = 0;
+    CHECK(serial_readB(&buf));
+    
     /* KRT2 radio sends 'S' repeatedly while waiting for connection */
-    if(*buf != 'S') {
+    if(buf != 'S') {
         return -1;
     }
     /* respond back with any ASCII character */    
@@ -73,6 +71,15 @@ int krt_check() {
         case _SIDETONE: new_sidetone(); break;
         case _SPACING833: _communication->spacing = _SPACING833; break;
         case _SPACING25: _communication->spacing = _SPACING25; break;
+        case _STATUS_BAT: *KRT2_status |= _MASK_BAT; break;
+        case _STATUS_BAT_CNCL: *KRT2_status &= ~_MASK_BAT; break;
+        case _STATUS_RX: *KRT2_status |= _MASK_RX; break;
+        case _STATUS_RX_CNCL: *KRT2_status &= ~_MASK_RX; break;
+        case _STATUS_TX: *KRT2_status |= _MASK_TX; break;
+        case _STATUS_RX_TXCNCL: *KRT2_status &= ~(_MASK_RX | _MASK_TX | _MASK_DUAL_RX); break;
+        case _STATUS_TIMEOUT: *KRT2_status |= _MASK_TIMEOUT; break;
+        case _STATUS_DUAL_ON: *KRT2_status |= _MASK_DUAL_ON; break;
+        case _STATUS_DUAL_OFF: *KRT2_status &= ~_MASK_DUAL_ON; break;
     }
 
     return 0;
@@ -168,6 +175,11 @@ int new_sidetone(){
 int set_active_frequency(char frequency, char channel, char name[9]){
     char buf[13];
 
+    if(frequency < 118) frequency = 118;
+    if(frequency > 136) frequency = 136;
+    if(channel < 0) channel = 0;
+    if(channel > 198) channel = 198;
+
     buf[0] = 0x02;
     buf[1] = _ACT_FREQ;
     buf[2] = frequency;
@@ -190,6 +202,11 @@ int set_active_frequency(char frequency, char channel, char name[9]){
 
 int set_stby_frequency(char frequency, char channel, char name[9]){
     char buf[13];
+
+    if(frequency < 118) frequency = 118;
+    if(frequency > 136) frequency = 136;
+    if(channel < 0) channel = 0;
+    if(channel > 198) channel = 198;
 
     buf[0] = 0x02;
     buf[1] = _STBY_FREQ;
@@ -300,6 +317,8 @@ int set_spacing(char spacing) {
 }
 
 unsigned char get_channel(int khz) {
+    if(khz > 995) return 198;
+    if(khz < 0) return 0;
     if (khz % 25 == 20) {
         khz = khz - 5;
     }
@@ -308,6 +327,8 @@ unsigned char get_channel(int khz) {
 }
 
 int get_khz(unsigned char channel) {
+    if(channel < 0) return 0;
+    if(channel > 198) return 990;
     return channel*5;
 }
 
@@ -327,7 +348,7 @@ int send_data(char* buf, int size, int max_attempts) {
     int attempts = 0;
     
     if(max_attempts > 0){
-        non_canonical_set(size,10);
+        non_canonical_set(0,10);
         while(response != ACK && attempts++ < max_attempts) {
             serial_write(buf, size);
             serial_readB(&response);
