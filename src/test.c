@@ -23,5 +23,6 @@ int main(){
         fflush(stdout);
         sleep(0.1);
     }
+    set_active_frequency(119, 160, "M. BUJAS");
     return 0;
 }
