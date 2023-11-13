@@ -7,11 +7,12 @@ static char NAK = 0x15;
 
 int new_active_frequency(); int new_stby_frequency(); int new_communication_cfg();
 int new_PTT(); int new_intercom_vol(); int new_ext_audio_vol(); int new_sidetone();
-int set_active_frequency(char frequency, char channel, char name[8]);
-int set_stby_frequency(char frequency, char channel, char name[8]);
+int set_active_frequency(char frequency, char channel, char name[9]);
+int set_stby_frequency(char frequency, char channel, char name[9]);
 int set_new_communication_cfg(char volume, char squelch, char intercom_squelch);
 int set_PTT(char PTT); int set_intercom_vol(char volume);
 int set_ext_audio_vol(char ext_volume); int set_sidetone(char sidetone);
+int send_data(char* buf, int size, int max_attempts);
 
 int krt_init(char* file, struct KRT2_frequency* freq,
             struct KRT2_communication* comm) {
@@ -43,9 +44,10 @@ int krt_check() {
 
     char buf[1];
     int n_bytes;
-    int attempts = 0;
 
     do {
+        non_canonical_set(0, 0);
+
         n_bytes = serial_readB(buf);
 
         if(n_bytes < 0) {
@@ -53,7 +55,6 @@ int krt_check() {
         }
 
     } while(buf[0] != 0x02 && n_bytes != 0); /* Each KRT2 transmition starts with STX (0x02) */
-    printf("\n");
 
     if(n_bytes == 0) return 0;
 
@@ -63,15 +64,15 @@ int krt_check() {
     }
 
     switch(buf[0]) {
-        case _ACT_FREQ: new_active_frequency();
-        case _STBY_FREQ: new_stby_frequency();
-        case _COMM_CFG: new_communication_cfg();
-        case _PTT: new_PTT();
-        case _IC_VOL: new_intercom_vol();
-        case _EXT_VOL: new_ext_audio_vol();
-        case _SIDETONE: new_sidetone();
-        case _SPACING833: _communication->spacing = _SPACING833;
-        case _SPACING25: _communication->spacing = _SPACING25;
+        case _ACT_FREQ: new_active_frequency(); break;
+        case _STBY_FREQ: new_stby_frequency(); break;
+        case _COMM_CFG: new_communication_cfg(); break;
+        case _PTT: new_PTT(); break;
+        case _IC_VOL: new_intercom_vol(); break;
+        case _EXT_VOL: new_ext_audio_vol(); break;
+        case _SIDETONE: new_sidetone(); break;
+        case _SPACING833: _communication->spacing = _SPACING833; break;
+        case _SPACING25: _communication->spacing = _SPACING25; break;
     }
 
     return 0;
@@ -82,7 +83,6 @@ int new_active_frequency(){
     non_canonical_set(11, 10);
     serial_read(buf, 11);
     if((buf[0] ^ buf[1]) != buf [10]) {
-        char msg = 0x15;
         serial_write(&NAK, 1);
         return -1;
     }
@@ -91,7 +91,7 @@ int new_active_frequency(){
     for(int i = 0; i < 8; i++) {
         _frequency->active_name[i] = buf[i+2];
     }
-    _frequency->active_name[9] = 0;
+    _frequency->active_name[8] = 0;
     serial_write(&ACK, 1);
     return 0;
 }
@@ -101,7 +101,6 @@ int new_stby_frequency(){
     non_canonical_set(11, 10);
     serial_read(buf, 11);
     if((buf[0] ^ buf[1]) != buf [10]) {
-        char msg = 0x15;
         serial_write(&NAK, 1);
         return -1;
     }
@@ -110,7 +109,7 @@ int new_stby_frequency(){
     for(int i = 0; i < 8; i++) {
         _frequency->stby_name[i] = buf[i+2];
     }
-    _frequency->active_name[9] = 0;
+    _frequency->stby_name[8] = 0;
     serial_write(&ACK, 1);
     return 0;
 }
@@ -185,7 +184,7 @@ int set_active_frequency(char frequency, char channel, char name[9]){
     for(int i = 0; i < 8; i++){
         _frequency->active_name[i] = name[i];
     }
-    _frequency->active_name[9] = 0;
+    _frequency->active_name[8] = 0;
     return 0;    
 }
 
@@ -208,7 +207,7 @@ int set_stby_frequency(char frequency, char channel, char name[9]){
     for(int i = 0; i < 8; i++){
         _frequency->stby_name[i] = name[i];
     }
-    _frequency->stby_name[9] = 0;
+    _frequency->stby_name[8] = 0;
     return 0;    
 }
 
@@ -300,7 +299,7 @@ int set_spacing(char spacing) {
     return 0;
 }
 
-char get_channel(int khz) {
+unsigned char get_channel(int khz) {
     if (khz % 25 == 20) {
         khz = khz - 5;
     }
@@ -308,8 +307,15 @@ char get_channel(int khz) {
     return channel;
 }
 
-int get_khz(char channel) {
+int get_khz(unsigned char channel) {
     return channel*5;
+}
+
+char* get_spacing_str(char spacing) {
+    if(spacing == _SPACING25) {
+        return "25";
+    }
+    return "8.33";
 }
 
 /* Sends 'size' bytes from 'buf' to KRT2 radio

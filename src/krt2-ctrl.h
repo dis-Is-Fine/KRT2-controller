@@ -34,5 +34,9 @@ struct KRT2_communication {
 int krt_init(char* file, struct KRT2_frequency* _frequency,
             struct KRT2_communication* _communication);
 
-char get_channel(int khz);
-int get_khz(char channel);
+int krt_check();
+
+unsigned char get_channel(int khz);
+int get_khz(unsigned char channel);
+
+char* get_spacing_str(char spacing);
