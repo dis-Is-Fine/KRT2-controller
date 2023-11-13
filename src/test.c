@@ -3,24 +3,26 @@
 
 struct KRT2_communication comm;
 struct KRT2_frequency freq;
+char status;
 
 int main(){
-    krt_init("/dev/ttyS0", &freq, &comm);
+    CHECKr(krt_init("/dev/ttyS0", &freq, &comm, &status), "Failed to initialize KRT2 (Timeout)");
     printf("KRT2 initialized\n");
     fflush(stdout);
-    printf("\033[?25l");
+    printf("\033[?25l"); // Disable cursor
     while(1){
         krt_check();
         printf("active: %i.%i %s\n", freq.active_frequency, get_khz(freq.active_channel), freq.active_name);
         fflush(stdout);
         printf("stby: %i.%i %s\n", freq.stby_frequency, get_khz(freq.stby_channel), freq.stby_name);
         fflush(stdout);
-        printf("radio vol: %i, radio sql: %i, intercom vol: %i, intercom sql: %i\n", comm.volume, comm.squelch, comm.intercom_volume, comm.intercom_squelch);
+        printf("radio vol: %i, radio sql: %i, intercom vol: %i, intercom sql: %i    \n", comm.volume, comm.squelch, comm.intercom_volume, comm.intercom_squelch);
         fflush(stdout);
-        printf("external audio: %i, sidetone: %i, PTT: %i, spacing: %s kHz\n", comm.external_input, comm.sidetone, comm.PTT, get_spacing_str(comm.spacing));
-        printf("\e[4A%c", 0xD);
+        printf("external audio: %i, sidetone: %i, PTT: %i, spacing: %s kHz    \n", comm.external_input, comm.sidetone, comm.PTT, get_spacing_str(comm.spacing));
+        printf("\e[4A%c", 0xD); //return to the top of text displayed
         fflush(stdout);
         sleep(0.1);
     }
+    set_active_frequency(119, 160, "M. BUJAS");
     return 0;
 }

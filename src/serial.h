@@ -19,3 +19,7 @@ void serial_end();
 #define CHECKa(x, y) ({int __val = (x); if (__val < 0) { \
     fprintf(stderr, "Runtime error at %s:%d\nError %d (%s)\nCaused by: %s\n", __FILE__, __LINE__, errno, strerror(errno), #x); \
     return __val;} *y = __val;})
+
+#define CHECKr(x, y) ({int __val = (x); if (__val < 0) { \
+    fprintf(stderr, "Runtime error at %s:%d\n%s\nCaused by: %s\n", __FILE__, __LINE__, y, #x); \
+    return __val;}})
