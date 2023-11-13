@@ -2,7 +2,8 @@
 
 struct KRT2_frequency* _frequency;
 struct KRT2_communication* _communication;
-char* KRT2_status;
+char* _status;
+char* _error;
 static char ACK = 0x06;
 static char NAK = 0x15;
 
@@ -16,11 +17,12 @@ int set_ext_audio_vol(char ext_volume); int set_sidetone(char sidetone);
 int send_data(char* buf, int size, int max_attempts);
 
 int krt_init(char* file, struct KRT2_frequency* freq,
-            struct KRT2_communication* comm, char* status) {
+            struct KRT2_communication* comm, char* status, char* error) {
 
     _frequency = freq;
     _communication = comm;
-    KRT2_status = status;
+    _status = status;
+    _error = error;
     
     CHECK(serial_init(file, B9600));
     CHECK(non_canonical_set(0, 50));
@@ -71,15 +73,24 @@ int krt_check() {
         case _SIDETONE: new_sidetone(); break;
         case _SPACING833: _communication->spacing = _SPACING833; break;
         case _SPACING25: _communication->spacing = _SPACING25; break;
-        case _STATUS_BAT: *KRT2_status |= _MASK_BAT; break;
-        case _STATUS_BAT_CNCL: *KRT2_status &= ~_MASK_BAT; break;
-        case _STATUS_RX: *KRT2_status |= _MASK_RX; break;
-        case _STATUS_RX_CNCL: *KRT2_status &= ~_MASK_RX; break;
-        case _STATUS_TX: *KRT2_status |= _MASK_TX; break;
-        case _STATUS_RX_TXCNCL: *KRT2_status &= ~(_MASK_RX | _MASK_TX | _MASK_DUAL_RX); break;
-        case _STATUS_TIMEOUT: *KRT2_status |= _MASK_TIMEOUT; break;
-        case _STATUS_DUAL_ON: *KRT2_status |= _MASK_DUAL_ON; break;
-        case _STATUS_DUAL_OFF: *KRT2_status &= ~_MASK_DUAL_ON; break;
+        case _STATUS_BAT: *_status |= _MASK_BAT; break;
+        case _STATUS_BAT_CNCL: *_status &= ~_MASK_BAT; break;
+        case _STATUS_RX: *_status |= _MASK_RX; break;
+        case _STATUS_RX_CNCL: *_status &= ~_MASK_RX; break;
+        case _STATUS_TX: *_status |= _MASK_TX; break;
+        case _STATUS_RX_TXCNCL: *_status &= ~(_MASK_RX | _MASK_TX | _MASK_DUAL_RX); break;
+        case _STATUS_TIMEOUT: *_status |= _MASK_TIMEOUT; break;
+        case _STATUS_DUAL_ON: *_status |= _MASK_DUAL_ON; break;
+        case _STATUS_DUAL_OFF: *_status &= ~_MASK_DUAL_ON; break;
+        case _ERROR_ADC: *_error |= _MASK_ERROR_ADC; break;
+        case _ERROR_ANTENNA: *_error |= _MASK_ERROR_ANTENNA; break;
+        case _ERROR_FPAA: *_error |= _MASK_ERROR_FPAA ; break;
+        case _ERROR_FREQ_SYNTH: *_error |= _MASK_ERROR_FREQ_SYNTH; break;
+        case _ERROR_PLL: *_error |= _MASK_ERROR_PLL; break;
+        case _ERROR_INPUT_BLK: *_error |= _MASK_ERROR_INPUT_BLK; break;
+        case _ERROR_I2C_BUS: *_error |= _MASK_ERROR_IC2_BUS; break;
+        case _ERROR_D10_DIODE: *_error |= _MASK_ERROR_D10_DIODE; break;
+        case _ERROR_CLEAR : *_error = 0; break;
     }
 
     return 0;

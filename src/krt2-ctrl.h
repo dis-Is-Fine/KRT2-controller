@@ -60,8 +60,17 @@ struct KRT2_communication {
 #define _MASK_DUAL_RX_STBY 0b01000000
 #define _MASK_DUAL_RX 0b01100000
 
+#define _MASK_ERROR_ADC 0b00000001
+#define _MASK_ERROR_ANTENNA 0b00000010
+#define _MASK_ERROR_FPAA 0b00000100
+#define _MASK_ERROR_FREQ_SYNTH 0b00001000
+#define _MASK_ERROR_PLL 0b00010000
+#define _MASK_ERROR_INPUT_BLK 0b00100000
+#define _MASK_ERROR_IC2_BUS 0b01000000
+#define _MASK_ERROR_D10_DIODE 0b10000000
+
 int krt_init(char* file, struct KRT2_frequency* _frequency,
-            struct KRT2_communication* _communication, char* status);
+            struct KRT2_communication* _communication, char* status, char* error);
 
 int krt_check();
 
