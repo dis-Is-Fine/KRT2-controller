@@ -16,6 +16,10 @@ int set_PTT(char PTT); int set_intercom_vol(char volume);
 int set_ext_audio_vol(char ext_volume); int set_sidetone(char sidetone);
 int send_data(char* buf, int size, int max_attempts);
 
+/* Initalizes KRT2 radio
+  assigns krt status structures and variables
+  returns 0 on success, -1 on fault
+  and -2 on timeout or garbage data recieved*/
 int krt_init(char* file, struct KRT2_frequency* freq,
             struct KRT2_communication* comm, char* status, char* error) {
 
@@ -25,17 +29,28 @@ int krt_init(char* file, struct KRT2_frequency* freq,
     _error = error;
     
     CHECK(serial_init(file, B9600));
-    CHECK(non_canonical_set(0, 50));
+    CHECK(non_canonical_set(0, 1));
     
     char buf = 0;
-    CHECK(serial_readB(&buf));
+    char n_bytes;
+    int attempts = 0;
+
+    do {
+        CHECKa(serial_readB(&buf), &n_bytes);
     
-    /* KRT2 radio sends 'S' repeatedly while waiting for connection */
+        /* KRT2 radio sends 'S' repeatedly while waiting for connection */
+        if(buf != 'S') {
+            continue;
+        }
+        /* respond back with any ASCII character */    
+        serial_write("C", 1);
+        break;
+    } while (attempts++ < 64);
+
     if(buf != 'S') {
-        return -1;
+        if(n_bytes >= 0) {PRINT_ERROR_MSG("Garbage data recieved"); return -2;}
+        PRINT_ERROR_MSG("Timeout while connecting to KRT2"); return -1;
     }
-    /* respond back with any ASCII character */    
-    serial_write("C", 1);
 
     return 0;
 }

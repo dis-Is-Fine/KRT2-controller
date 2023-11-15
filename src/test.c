@@ -7,7 +7,7 @@ char status;
 char error;
 
 int main(){
-    CHECKr(krt_init("/dev/ttyS0", &freq, &comm, &status, &error), "Failed to initialize KRT2 (Timeout)");
+    CHECK(krt_init("/dev/ttyS0", &freq, &comm, &status, &error));
     printf("KRT2 initialized\n");
     fflush(stdout);
     printf("\033[?25l"); // Disable cursor
@@ -25,6 +25,7 @@ int main(){
         printf("\e[4A%c", 0xD); //return to the top of text displayed
         fflush(stdout);
         sleep(0.1);
+
     }
     return 0;
 }
