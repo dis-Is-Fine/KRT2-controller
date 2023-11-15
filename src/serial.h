@@ -1,3 +1,6 @@
+#ifndef SERIAL_H
+#define SERIAL
+
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -36,3 +39,5 @@ void serial_end();
 
 /* Prints error message with provided string */
 #define PRINT_ERROR_MSG(x) fprintf(stderr, "Runtime error at %s:%d\n%s\n", __FILE__, __LINE__, x);
+
+#endif

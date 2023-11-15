@@ -1,3 +1,6 @@
+#ifndef KRT2_CTRL_H
+#define KRT2_CTRL_H
+
 #include <stdio.h>
 #include "serial.h"
 
@@ -80,3 +83,5 @@ int get_khz(unsigned char channel);
 char* get_spacing_str(char spacing);
 
 int set_active_frequency(char frequency, char channel, char name[9]);
+
+#endif
