@@ -48,7 +48,7 @@ int krt_init(char* file, struct KRT2_frequency* freq,
     } while (attempts++ < 64);
 
     if(buf != 'S') {
-        if(n_bytes >= 0) {PRINT_ERROR_MSG("Garbage data recieved"); return -2;}
+        if(n_bytes > 0) {PRINT_ERROR_MSG("Garbage data recieved while connecting to KRT2"); return -2;}
         PRINT_ERROR_MSG("Timeout while connecting to KRT2"); return -1;
     }
 
@@ -106,6 +106,7 @@ int krt_check() {
         case _ERROR_I2C_BUS: *_error |= _MASK_ERROR_IC2_BUS; break;
         case _ERROR_D10_DIODE: *_error |= _MASK_ERROR_D10_DIODE; break;
         case _ERROR_CLEAR : *_error = 0; break;
+        default: serial_write(&NAK, 1);
     }
 
     return 0;

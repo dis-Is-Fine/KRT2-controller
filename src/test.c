@@ -7,8 +7,8 @@ char status;
 char error;
 
 int main(){
-    CHECK(krt_init("/dev/ttyS0", &freq, &comm, &status, &error));
-    printf("KRT2 initialized\n");
+    if(krt_init("/dev/ttyS0", &freq, &comm, &status, &error) < 0) return -1;
+    printf("%sKRT2 initialized\n%s", _COLOR_GREEN_T, _COLOR_DEFAULT_T);
     fflush(stdout);
     printf("\033[?25l"); // Disable cursor
     while(1){
@@ -25,7 +25,6 @@ int main(){
         printf("\e[4A%c", 0xD); //return to the top of text displayed
         fflush(stdout);
         sleep(0.1);
-
     }
     return 0;
 }
