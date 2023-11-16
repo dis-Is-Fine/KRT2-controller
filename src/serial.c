@@ -82,3 +82,19 @@ void serial_end() {
     close(serial_port);
 
 }
+
+int logger(char* message, char* file, int line) {
+    int fd = 0;
+    CHECKa(open("test.log", O_CREAT | O_WRONLY | O_APPEND, 0777), &fd);
+    int len = strlen(message)+strlen(file)+10;
+    char buf[len];
+    sprintf(buf, "%s:%d : %s\n", file, line, message);
+    CHECK(write(fd, buf, strlen(buf)));
+    CHECK(close(fd));
+    return 0;
+}
+
+int clear_log() {
+    CHECK(truncate("./test.log", 0));
+    return 0;
+}

@@ -1,5 +1,8 @@
 #ifndef SERIAL_H
-#define SERIAL
+#define SERIAL_H
+
+#define DEBUG
+#define TEST
 
 #include <stdio.h>
 #include <string.h>
@@ -15,13 +18,15 @@ int serial_read(char* buf, int buf_size);
 int non_canonical_set(int min_bytes, int max_time);
 int serial_readB(char* buf);
 void serial_end();
+int logger(char* message, char* file, int line);
+int clear_log();
 
 /* Checks for error (return value of x < 0)
   prints error message as perror would
   exits (returns) with return value of x if x < 0 */
 #define CHECK(x) ({int __val = (x); if (__val < 0) { \
     fprintf(stderr, "%sRuntime error at %s:%d\nError %d (%s)\nCaused by: %s\n%s", \
-    _COLOR_RED_T, __FILE__, __LINE__, errno, strerror(errno), #x, _COLOR_WHITE_T); \
+    _COLOR_RED_T, __FILE__, __LINE__, errno, strerror(errno), #x, _COLOR_DEFAULT_T); \
     return __val;}})
 
 /* Checks for error (return value of x < 0)
@@ -30,7 +35,7 @@ void serial_end();
   assigns return value to variable pointer y */
 #define CHECKa(x, y) ({int __val = (x); if (__val < 0) { \
     fprintf(stderr, "%sRuntime error at %s:%d\nError %d (%s)\nCaused by: %s\n%s", \
-    _COLOR_RED_T __FILE__, __LINE__, errno, strerror(errno), #x, _COLOR_WHITE_T); \
+    _COLOR_RED_T, __FILE__, __LINE__, errno, strerror(errno), #x, _COLOR_DEFAULT_T); \
     return __val;} *y = __val;})
 
 /* Checks for error (return value of x < 0)
@@ -38,11 +43,15 @@ void serial_end();
   exits (returns) with return value of x if x < 0 */
 #define CHECKr(x, y) ({int __val = (x); if (__val < 0) { \
     fprintf(stderr, "%sRuntime error at %s:%d\n%s\nCaused by: %s\n%s", \
-    _COLOR_RED_T, __FILE__, __LINE__, y, #x, _COLOR_WHITE_T); \
+    _COLOR_RED_T, __FILE__, __LINE__, y, #x, _COLOR_DEFAULT_T); \
     return __val;}})
+
+#define CHECKnp(x) ({int __val = (x); if(__val < 0) { return -1;}})
 
 /* Prints error message with provided string */
 #define PRINT_ERROR_MSG(x) fprintf(stderr, "%sRuntime error at %s:%d\n%s\n%s", \
-_COLOR_RED_T, __FILE__, __LINE__, x, _COLOR_WHITE_T);
+_COLOR_RED_T, __FILE__, __LINE__, x, _COLOR_DEFAULT_T);
+
+#define LOG(x) ({logger(x, __FILE__, __LINE__);})
 
 #endif

@@ -3,6 +3,7 @@
 
 #define _HIDE_CURSOR "\033[?25l"
 #define _SHOW_CURSOR "\033[?25h"
+#define _CLEAR_SCREEN "\e[1;1H\e[2J"
 #define _COLOR_WHITE_T "\033[37;49m"
 #define _COLOR_RED_T "\033[31;49m"
 #define _COLOR_GREEN_T "\033[32;49m"

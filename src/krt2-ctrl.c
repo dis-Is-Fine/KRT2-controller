@@ -1,5 +1,12 @@
 #include "krt2-ctrl.h"
 
+#ifndef DEBUG
+#warning This library is not fully finished, bugs may be present
+#endif
+#ifdef TEST
+#warning Library is running in test mode
+#endif
+
 struct KRT2_frequency* _frequency;
 struct KRT2_communication* _communication;
 char* _status;
@@ -9,8 +16,8 @@ static char NAK = 0x15;
 
 int new_active_frequency(); int new_stby_frequency(); int new_communication_cfg();
 int new_PTT(); int new_intercom_vol(); int new_ext_audio_vol(); int new_sidetone();
-int set_active_frequency(char frequency, char channel, char name[9]);
-int set_stby_frequency(char frequency, char channel, char name[9]);
+int set_active_frequency(unsigned char frequency, unsigned char channel, char name[9]);
+int set_stby_frequency(unsigned char frequency, unsigned char channel, char name[9]);
 int set_new_communication_cfg(char volume, char squelch, char intercom_squelch);
 int set_PTT(char PTT); int set_intercom_vol(char volume);
 int set_ext_audio_vol(char ext_volume); int set_sidetone(char sidetone);
@@ -23,6 +30,7 @@ int send_data(char* buf, int size, int max_attempts);
 int krt_init(char* file, struct KRT2_frequency* freq,
             struct KRT2_communication* comm, char* status, char* error) {
 
+    
     _frequency = freq;
     _communication = comm;
     _status = status;
@@ -35,6 +43,7 @@ int krt_init(char* file, struct KRT2_frequency* freq,
     char n_bytes;
     int attempts = 0;
 
+    #ifndef TEST
     do {
         CHECKa(serial_readB(&buf), &n_bytes);
     
@@ -51,6 +60,7 @@ int krt_init(char* file, struct KRT2_frequency* freq,
         if(n_bytes > 0) {PRINT_ERROR_MSG("Garbage data recieved while connecting to KRT2"); return -2;}
         PRINT_ERROR_MSG("Timeout while connecting to KRT2"); return -1;
     }
+    #endif
 
     return 0;
 }
@@ -199,7 +209,7 @@ int new_sidetone(){
     return 0;
 }
 
-int set_active_frequency(char frequency, char channel, char name[9]){
+int set_active_frequency(unsigned char frequency, unsigned char channel, char name[9]){
     char buf[13];
 
     if(frequency < 118) frequency = 118;
@@ -211,23 +221,18 @@ int set_active_frequency(char frequency, char channel, char name[9]){
     buf[1] = _ACT_FREQ;
     buf[2] = frequency;
     buf[3] = channel;
-    for(int i = 0; i < 8; i++){
-        buf[i+4] = name[i];
-    }
-    buf[13] = buf[0] ^ buf[1];
+    strcpy(buf+4, name);
+    buf[12] = buf[2] ^ buf[3];
 
-    if(send_data(buf, 13, 3) < 0) return -1;
+    CHECKnp(send_data(buf, 13, 3));
 
     _frequency->active_frequency = frequency;
     _frequency->active_channel = channel;
-    for(int i = 0; i < 8; i++){
-        _frequency->active_name[i] = name[i];
-    }
-    _frequency->active_name[8] = 0;
+    strcpy(_frequency->active_name, name);
     return 0;    
 }
 
-int set_stby_frequency(char frequency, char channel, char name[9]){
+int set_stby_frequency(unsigned char frequency, unsigned char channel, char name[9]){
     char buf[13];
 
     if(frequency < 118) frequency = 118;
@@ -239,19 +244,14 @@ int set_stby_frequency(char frequency, char channel, char name[9]){
     buf[1] = _STBY_FREQ;
     buf[2] = frequency;
     buf[3] = channel;
-    for(int i = 0; i < 8; i++){
-        buf[i+4] = name[i];
-    }
-    buf[13] = buf[0] ^ buf[1];
+    strcpy(buf+4, name);
+    buf[12] = buf[2] ^ buf[3];
 
     if(send_data(buf, 13, 3) < 0) return -1;
 
     _frequency->stby_frequency = frequency;
     _frequency->stby_channel = channel;
-    for(int i = 0; i < 8; i++){
-        _frequency->stby_name[i] = name[i];
-    }
-    _frequency->stby_name[8] = 0;
+    strcpy(_frequency->stby_name, name);
     return 0;    
 }
 
@@ -281,7 +281,7 @@ int set_PTT(char PTT){
     buf[1] = _PTT;
     buf[2] = PTT;
 
-    if(send_data(buf, 3, 3) < 0) return -1;
+    CHECKnp(send_data(buf, 3, 3));
 
     _communication->PTT = PTT;
 
@@ -333,13 +333,20 @@ int set_sidetone(char sidetone) {
 }
 
 int set_spacing(char spacing) {
+    if(spacing != _SPACING25 && spacing != _SPACING833) {
+        PRINT_ERROR_MSG("Invalid spacing value provided");
+        return -1;
+    }
+
     char buf[2];
 
     buf[0] = 0x02;
     buf[1] = spacing;
 
-    if(send_data(buf, 2, 0) != 2) return -1;
+    CHECKnp(send_data(buf, 2, 0));
     
+    _communication->spacing=spacing;
+
     return 0;
 }
 
@@ -374,19 +381,28 @@ int send_data(char* buf, int size, int max_attempts) {
     char response = 0;
     int attempts = 0;
     
+    #ifndef TEST
     if(max_attempts > 0){
-        non_canonical_set(0,10);
+        LOG("Setting non canonical reads to 0|10");
+        CHECK(non_canonical_set(0,10));
+        LOG("Sending data to KRT2 with acknowledgement check");
         while(response != ACK && attempts++ < max_attempts) {
             serial_write(buf, size);
             serial_readB(&response);
         }
         if(attempts >= max_attempts) {
+            #ifdef DEBUG
+                PRINT_ERROR_MSG("Failed to write to KRT2 (no acknowledgement)");
+            #endif
+            LOG("Failed to write to KRT2 (no acknowledgement)");
             return -1;
         }
         return 0;
     }
+    #endif
 
-    serial_write(buf, size);
+    LOG("Sending data to KRT2 without acknowledgement check");
+    CHECK(serial_write(buf, size));
 
     return 0;
 }
