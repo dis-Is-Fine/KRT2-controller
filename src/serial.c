@@ -83,6 +83,11 @@ void serial_end() {
 
 }
 
+/* Logs message to log file
+  put your message in 'message'
+  put line number and file of code
+  in respective arguments
+  best to use from LOG() macro */
 int logger(char* message, char* file, int line) {
     int fd = 0;
     CHECKa(open("test.log", O_CREAT | O_WRONLY | O_APPEND, 0777), &fd);
@@ -94,6 +99,7 @@ int logger(char* message, char* file, int line) {
     return 0;
 }
 
+/* Clears contents of log file */
 int clear_log() {
     CHECK(truncate("./test.log", 0));
     return 0;

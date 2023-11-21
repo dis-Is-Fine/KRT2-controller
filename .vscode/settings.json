@@ -4,5 +4,8 @@
         "termios.h": "c",
         "errno.h": "c",
         "krt2-ctrl.h": "c"
-    }
+    },
+    "compiler-explorer.compiler": "objcg132",
+    "C_Cpp.default.compilerPath": "/usr/bin/gcc-13",
+    "workbench.editor.tabSizingFixedMinWidth": 38
 }

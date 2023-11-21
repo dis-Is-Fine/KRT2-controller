@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "serial.h"
 
+#define _CONNECTION_CHK 'S'
 #define _ACT_FREQ 'U'
 #define _STBY_FREQ 'R'
 #define _COMM_CFG 'A'

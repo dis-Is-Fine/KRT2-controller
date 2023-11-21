@@ -1,27 +1,34 @@
 #include "krt2-ctrl.h"
 
-#ifndef DEBUG
 #warning This library is not fully finished, bugs may be present
-#endif
 #ifdef TEST
 #warning Library is running in test mode
 #endif
 
+struct KRT2_sub_frequency {
+    char frequency;
+    char channel;
+    char name[9];
+};
+
 struct KRT2_frequency* _frequency;
+struct KRT2_sub_frequency* _act_frequency;
+struct KRT2_sub_frequency* _stby_frequency;
 struct KRT2_communication* _communication;
 char* _status;
 char* _error;
+char* _file;
 static char ACK = 0x06;
 static char NAK = 0x15;
 
-int new_active_frequency(); int new_stby_frequency(); int new_communication_cfg();
+int new_frequency(char selector); int new_communication_cfg();
 int new_PTT(); int new_intercom_vol(); int new_ext_audio_vol(); int new_sidetone();
 int set_active_frequency(unsigned char frequency, unsigned char channel, char name[9]);
 int set_stby_frequency(unsigned char frequency, unsigned char channel, char name[9]);
 int set_new_communication_cfg(char volume, char squelch, char intercom_squelch);
 int set_PTT(char PTT); int set_intercom_vol(char volume);
 int set_ext_audio_vol(char ext_volume); int set_sidetone(char sidetone);
-int send_data(char* buf, int size, int max_attempts);
+int send_data(char* buf, int size, int max_attempts); int connection_check();
 
 /* Initalizes KRT2 radio
   assigns krt status structures and variables
@@ -29,73 +36,64 @@ int send_data(char* buf, int size, int max_attempts);
   and -2 on timeout or garbage data recieved*/
 int krt_init(char* file, struct KRT2_frequency* freq,
             struct KRT2_communication* comm, char* status, char* error) {
-
     
     _frequency = freq;
+    _act_frequency = (struct KRT2_sub_frequency*) freq;
+    _stby_frequency = ((struct KRT2_sub_frequency*) freq + 1);
     _communication = comm;
     _status = status;
     _error = error;
+    _file = file;
     
-    CHECK(serial_init(file, B9600));
-    CHECK(non_canonical_set(0, 1));
-    
-    char buf = 0;
-    char n_bytes;
-    int attempts = 0;
+    char* messages[3] = {"KRT2 initialization failed (garbage data received)", \
+                "KRT2 initialization failed (timeout)", "KRT2 initialization succeded"};
 
-    #ifndef TEST
-    do {
-        CHECKa(serial_readB(&buf), &n_bytes);
-    
-        /* KRT2 radio sends 'S' repeatedly while waiting for connection */
-        if(buf != 'S') {
-            continue;
-        }
-        /* respond back with any ASCII character */    
-        serial_write("C", 1);
-        break;
-    } while (attempts++ < 64);
+    int ret_val = connection_check();
+    LOG(messages[ret_val+2]);
 
-    if(buf != 'S') {
-        if(n_bytes > 0) {PRINT_ERROR_MSG("Garbage data recieved while connecting to KRT2"); return -2;}
-        PRINT_ERROR_MSG("Timeout while connecting to KRT2"); return -1;
-    }
-    #endif
-
-    return 0;
+    return ret_val;
 }
 
+
+/* Check data received from KRT2 and handles it*/
 int krt_check() {
 
-    char buf[1];
+    char buf;
     int n_bytes;
 
+    /* Run trough all new bytes received form KRT2
+      if recived byte is 0x02 or no new bytes left to read
+      on fault return fault code */
+    CHECKnp(non_canonical_set(0, 0));
     do {
-        non_canonical_set(0, 0);
-
-        n_bytes = serial_readB(buf);
+        n_bytes = serial_readB(&buf);
 
         if(n_bytes < 0) {
-            return -1;
+            return n_bytes;
         }
 
-    } while(buf[0] != 0x02 && n_bytes != 0); /* Each KRT2 transmition starts with STX (0x02) */
+    } while(buf != 0x02 && n_bytes != 0); /* Each KRT2 transmition starts with STX (0x02) */
 
+    /* Continue if buf contains 0x02*/
     if(n_bytes == 0) return 0;
 
-    n_bytes = serial_readB(buf);
+    n_bytes = serial_readB(&buf);
     if(n_bytes <= 0) {
         return -1;
     }
 
-    switch(buf[0]) {
-        case _ACT_FREQ: new_active_frequency(); break;
-        case _STBY_FREQ: new_stby_frequency(); break;
-        case _COMM_CFG: new_communication_cfg(); break;
-        case _PTT: new_PTT(); break;
-        case _IC_VOL: new_intercom_vol(); break;
-        case _EXT_VOL: new_ext_audio_vol(); break;
-        case _SIDETONE: new_sidetone(); break;
+    /* Handle data based on data recieved from KRT2
+      if no valid byte is received return 0
+      else call needed function */
+    switch(buf) {
+        case _CONNECTION_CHK: CHECKnp(connection_check()); break;
+        case _ACT_FREQ: CHECKnp(new_frequency(0)); break;
+        case _STBY_FREQ: CHECKnp(new_frequency(1)); break;
+        case _COMM_CFG: CHECKnp(new_communication_cfg()); break;
+        case _PTT: CHECKnp(new_PTT()); break;
+        case _IC_VOL: CHECKnp(new_intercom_vol()); break;
+        case _EXT_VOL: CHECKnp(new_ext_audio_vol()); break;
+        case _SIDETONE: CHECKnp(new_sidetone()); break;
         case _SPACING833: _communication->spacing = _SPACING833; break;
         case _SPACING25: _communication->spacing = _SPACING25; break;
         case _STATUS_BAT: *_status |= _MASK_BAT; break;
@@ -116,45 +114,78 @@ int krt_check() {
         case _ERROR_I2C_BUS: *_error |= _MASK_ERROR_IC2_BUS; break;
         case _ERROR_D10_DIODE: *_error |= _MASK_ERROR_D10_DIODE; break;
         case _ERROR_CLEAR : *_error = 0; break;
-        default: serial_write(&NAK, 1);
+        default: return 0;
     }
 
     return 0;
 }
 
-int new_active_frequency(){
-    char buf[11];
-    non_canonical_set(11, 10);
-    serial_read(buf, 11);
-    if((buf[0] ^ buf[1]) != buf [10]) {
-        serial_write(&NAK, 1);
+int connection_check() {
+
+    /* In test mode don't require conection confirmation */
+    #ifdef TEST
+        CHECK(serial_init(_file, B9600));
+        CHECK(non_canonical_set(0, 1));
+        return 0;
+    #endif
+
+    /* In test mode this isn't executed */
+    char buf = 0;
+    char n_bytes;
+    int attempts = 0;
+
+    do {
+        CHECKa(serial_readB(&buf), &n_bytes);
+
+        if(n_bytes == 0) continue;
+    
+        /* KRT2 radio sends 'S' repeatedly while waiting for connection */
+        if(buf != 'S') {
+            continue;
+        }
+        /* respond back with any ASCII character */    
+        serial_write("C", 1);
+        return 0;
+
+    } while (attempts++ < 64); /* Wise man once said it is important to know when to stop trying */
+
+    /* If connection was unsuccessful print error message and return */
+
+    if(n_bytes == 0) {
+        #ifdef DEBUG
+        PRINT_ERROR_MSG("Timeout while connecting to KRT2");
+        #endif
+        LOG("Timeout while connecting with KRT2");
         return -1;
     }
-    _frequency->active_frequency = buf[0];
-    _frequency->active_channel = buf[1];
-    for(int i = 0; i < 8; i++) {
-        _frequency->active_name[i] = buf[i+2];
-    }
-    _frequency->active_name[8] = 0;
-    serial_write(&ACK, 1);
-    return 0;
+
+    #ifdef DEBUG
+    PRINT_ERROR_MSG("Garbage data recieved while connecting to KRT2");
+    #endif
+    LOG("Garbage data received while connecting to KRT2");
+    return -2;
 }
 
-int new_stby_frequency(){
+/* Sets new frequency based on received data
+  on system errors return -1
+  on checksum missmatch returns -2 */
+int new_frequency(char selector){
     char buf[11];
-    non_canonical_set(11, 10);
-    serial_read(buf, 11);
+    CHECKnp(non_canonical_set(11, 10));
+    CHECKnp(serial_read(buf, 11));
     if((buf[0] ^ buf[1]) != buf [10]) {
-        serial_write(&NAK, 1);
-        return -1;
+        CHECKnp(serial_write(&NAK, 1));
+        return -2;
     }
-    _frequency->stby_frequency = buf[0];
-    _frequency->stby_channel = buf[1];
+    struct KRT2_sub_frequency* sub_frequency;
+    sub_frequency = ((selector == 0) ? _act_frequency : _stby_frequency); 
+    sub_frequency->frequency = buf[0];
+    sub_frequency->channel = buf[1];
     for(int i = 0; i < 8; i++) {
-        _frequency->stby_name[i] = buf[i+2];
+        sub_frequency->name[i] = buf[i+2];
     }
-    _frequency->stby_name[8] = 0;
-    serial_write(&ACK, 1);
+    sub_frequency->name[8] = 0;
+    CHECKnp(serial_write(&ACK, 1));
     return 0;
 }
 
