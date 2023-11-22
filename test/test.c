@@ -1,6 +1,6 @@
 #define DEBUG
 
-#include "krt2-ctrl.h"
+#include "../src/krt2-ctrl.h"
 #include <string.h>
 #include <signal.h>
 #include <stdlib.h>
