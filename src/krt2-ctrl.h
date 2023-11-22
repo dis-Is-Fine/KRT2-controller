@@ -83,8 +83,7 @@ int get_khz(unsigned char channel);
 
 char* get_spacing_str(char spacing);
 
-int set_active_frequency(unsigned char frequency, unsigned char channel, char name[9]);
-int set_stby_frequency(unsigned char frequency, unsigned char channel, char name[9]);
+int set_frequency(unsigned char frequency, unsigned char channel, char name[9], char selector);
 int set_new_communication_cfg(char volume, char squelch, char intercom_squelch);
 int set_PTT(char PTT);
 int set_intercom_vol(char volume);

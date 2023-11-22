@@ -23,8 +23,7 @@ static char NAK = 0x15;
 
 int new_frequency(char selector); int new_communication_cfg();
 int new_PTT(); int new_intercom_vol(); int new_ext_audio_vol(); int new_sidetone();
-int set_active_frequency(unsigned char frequency, unsigned char channel, char name[9]);
-int set_stby_frequency(unsigned char frequency, unsigned char channel, char name[9]);
+int set_frequency(unsigned char frequency, unsigned char channel, char name[9], char selector);
 int set_new_communication_cfg(char volume, char squelch, char intercom_squelch);
 int set_PTT(char PTT); int set_intercom_vol(char volume);
 int set_ext_audio_vol(char ext_volume); int set_sidetone(char sidetone);
@@ -44,88 +43,12 @@ int krt_init(char* file, struct KRT2_frequency* freq,
     _status = status;
     _error = error;
     _file = file;
-    
-    char* messages[3] = {"KRT2 initialization failed (garbage data received)", \
-                "KRT2 initialization failed (timeout)", "KRT2 initialization succeded"};
 
-    int ret_val = connection_check();
-    LOG(messages[ret_val+2]);
-
-    return ret_val;
-}
-
-
-/* Check data received from KRT2 and handles it*/
-int krt_check() {
-
-    char buf;
-    int n_bytes;
-
-    /* Run trough all new bytes received form KRT2
-      if recived byte is 0x02 or no new bytes left to read
-      on fault return fault code */
-    CHECKnp(non_canonical_set(0, 0));
-    do {
-        n_bytes = serial_readB(&buf);
-
-        if(n_bytes < 0) {
-            return n_bytes;
-        }
-
-    } while(buf != 0x02 && n_bytes != 0); /* Each KRT2 transmition starts with STX (0x02) */
-
-    /* Continue if buf contains 0x02*/
-    if(n_bytes == 0) return 0;
-
-    n_bytes = serial_readB(&buf);
-    if(n_bytes <= 0) {
-        return -1;
-    }
-
-    /* Handle data based on data recieved from KRT2
-      if no valid byte is received return 0
-      else call needed function */
-    switch(buf) {
-        case _CONNECTION_CHK: CHECKnp(connection_check()); break;
-        case _ACT_FREQ: CHECKnp(new_frequency(0)); break;
-        case _STBY_FREQ: CHECKnp(new_frequency(1)); break;
-        case _COMM_CFG: CHECKnp(new_communication_cfg()); break;
-        case _PTT: CHECKnp(new_PTT()); break;
-        case _IC_VOL: CHECKnp(new_intercom_vol()); break;
-        case _EXT_VOL: CHECKnp(new_ext_audio_vol()); break;
-        case _SIDETONE: CHECKnp(new_sidetone()); break;
-        case _SPACING833: _communication->spacing = _SPACING833; break;
-        case _SPACING25: _communication->spacing = _SPACING25; break;
-        case _STATUS_BAT: *_status |= _MASK_BAT; break;
-        case _STATUS_BAT_CNCL: *_status &= ~_MASK_BAT; break;
-        case _STATUS_RX: *_status |= _MASK_RX; break;
-        case _STATUS_RX_CNCL: *_status &= ~_MASK_RX; break;
-        case _STATUS_TX: *_status |= _MASK_TX; break;
-        case _STATUS_RX_TXCNCL: *_status &= ~(_MASK_RX | _MASK_TX | _MASK_DUAL_RX); break;
-        case _STATUS_TIMEOUT: *_status |= _MASK_TIMEOUT; break;
-        case _STATUS_DUAL_ON: *_status |= _MASK_DUAL_ON; break;
-        case _STATUS_DUAL_OFF: *_status &= ~_MASK_DUAL_ON; break;
-        case _ERROR_ADC: *_error |= _MASK_ERROR_ADC; break;
-        case _ERROR_ANTENNA: *_error |= _MASK_ERROR_ANTENNA; break;
-        case _ERROR_FPAA: *_error |= _MASK_ERROR_FPAA ; break;
-        case _ERROR_FREQ_SYNTH: *_error |= _MASK_ERROR_FREQ_SYNTH; break;
-        case _ERROR_PLL: *_error |= _MASK_ERROR_PLL; break;
-        case _ERROR_INPUT_BLK: *_error |= _MASK_ERROR_INPUT_BLK; break;
-        case _ERROR_I2C_BUS: *_error |= _MASK_ERROR_IC2_BUS; break;
-        case _ERROR_D10_DIODE: *_error |= _MASK_ERROR_D10_DIODE; break;
-        case _ERROR_CLEAR : *_error = 0; break;
-        default: return 0;
-    }
-
-    return 0;
-}
-
-int connection_check() {
+    CHECK(serial_init(_file, B9600));
+    CHECK(non_canonical_set(0, 1));
 
     /* In test mode don't require conection confirmation */
     #ifdef TEST
-        CHECK(serial_init(_file, B9600));
-        CHECK(non_canonical_set(0, 1));
         return 0;
     #endif
 
@@ -166,37 +89,117 @@ int connection_check() {
     return -2;
 }
 
+
+/* Check data received from KRT2 and handles it*/
+int krt_check() {
+
+    char buf;
+    int n_bytes;
+
+    /* Run trough all new bytes received form KRT2
+      if recived byte is 0x02 or no new bytes left to read
+      on fault return fault code */
+    CHECKnp(non_canonical_set(0, 0));
+    do {
+        n_bytes = serial_readB(&buf);
+
+        if(n_bytes < 0) {
+            return n_bytes;
+        }
+
+    } while(buf != 0x02 && n_bytes != 0); /* Each KRT2 transmition starts with STX (0x02) */
+
+    /* Continue if buf contains 0x02*/
+    if(n_bytes == 0) return 0;
+
+    n_bytes = serial_readB(&buf);
+    if(n_bytes <= 0) {
+        LOG("Received STX byte without continuation of transmition or encountered faulty read after STX received");
+        return -1;
+    }
+
+    LOG("Received STX byte, checking next byte");
+    /* Handle data based on data recieved from KRT2
+      if no valid byte is received return 0
+      else call needed function */
+    switch(buf) {
+        case _CONNECTION_CHK: CHECKnp(serial_write("C", 1)); break;
+        case _ACT_FREQ: CHECKnp(new_frequency(0)); break;
+        case _STBY_FREQ: CHECKnp(new_frequency(1)); break;
+        case _COMM_CFG: CHECKnp(new_communication_cfg()); break;
+        case _PTT: CHECKnp(new_PTT()); break;
+        case _IC_VOL: CHECKnp(new_intercom_vol()); break;
+        case _EXT_VOL: CHECKnp(new_ext_audio_vol()); break;
+        case _SIDETONE: CHECKnp(new_sidetone()); break;
+        case _SPACING833: _communication->spacing = _SPACING833; break;
+        case _SPACING25: _communication->spacing = _SPACING25; break;
+        case _STATUS_BAT: *_status |= _MASK_BAT; break;
+        case _STATUS_BAT_CNCL: *_status &= ~_MASK_BAT; break;
+        case _STATUS_RX: *_status |= _MASK_RX; break;
+        case _STATUS_RX_CNCL: *_status &= ~_MASK_RX; break;
+        case _STATUS_TX: *_status |= _MASK_TX; break;
+        case _STATUS_RX_TXCNCL: *_status &= ~(_MASK_RX | _MASK_TX | _MASK_DUAL_RX); break;
+        case _STATUS_TIMEOUT: *_status |= _MASK_TIMEOUT; break;
+        case _STATUS_DUAL_ON: *_status |= _MASK_DUAL_ON; break;
+        case _STATUS_DUAL_OFF: *_status &= ~_MASK_DUAL_ON; break;
+        case _ERROR_ADC: *_error |= _MASK_ERROR_ADC; break;
+        case _ERROR_ANTENNA: *_error |= _MASK_ERROR_ANTENNA; break;
+        case _ERROR_FPAA: *_error |= _MASK_ERROR_FPAA ; break;
+        case _ERROR_FREQ_SYNTH: *_error |= _MASK_ERROR_FREQ_SYNTH; break;
+        case _ERROR_PLL: *_error |= _MASK_ERROR_PLL; break;
+        case _ERROR_INPUT_BLK: *_error |= _MASK_ERROR_INPUT_BLK; break;
+        case _ERROR_I2C_BUS: *_error |= _MASK_ERROR_IC2_BUS; break;
+        case _ERROR_D10_DIODE: *_error |= _MASK_ERROR_D10_DIODE; break;
+        case _ERROR_CLEAR : *_error = 0; break;
+        default: LOG("Byte received after STX byte is invalid"); return 0;
+    }
+
+    return 0;
+}
+
 /* Sets new frequency based on received data
   on system errors return -1
   on checksum missmatch returns -2 */
 int new_frequency(char selector){
+    char* log_msg[2] = {"Active frequency change requested by KRT2", "Standby frequency change requested by KRT2"};
+    #pragma GCC diagnostic ignored "-Wchar-subscripts"
+    LOG(log_msg[selector]);
+
     char buf[11];
     CHECKnp(non_canonical_set(11, 10));
     CHECKnp(serial_read(buf, 11));
+
     if((buf[0] ^ buf[1]) != buf [10]) {
+        LOG("Checksum missmatch on frequency change request from KRT2");
         CHECKnp(serial_write(&NAK, 1));
         return -2;
     }
+
     struct KRT2_sub_frequency* sub_frequency;
     sub_frequency = ((selector == 0) ? _act_frequency : _stby_frequency); 
+
     sub_frequency->frequency = buf[0];
     sub_frequency->channel = buf[1];
     for(int i = 0; i < 8; i++) {
         sub_frequency->name[i] = buf[i+2];
     }
     sub_frequency->name[8] = 0;
+
     CHECKnp(serial_write(&ACK, 1));
     return 0;
 }
 
 int new_communication_cfg(){
+    LOG("Communicaion configuration change requested by KRT2");
     char buf[4];
     non_canonical_set(4, 10);
     serial_read(buf, 4);
     if(buf[1] + buf[2] != buf[3]){
+        LOG("Checksum missmatch on communication configuration request from KRT2");
         serial_write(&NAK, 1);
         return -1;
     }
+
     _communication->volume = buf[0];
     _communication->squelch = buf[1];
     _communication->intercom_squelch = buf[2];
@@ -205,89 +208,119 @@ int new_communication_cfg(){
 }
 
 int new_PTT(){
+    LOG("PTT change requested by KRT2");
+
     char buf;
     non_canonical_set(1, 10);
     serial_read(&buf, 1);
+
     _communication->PTT = buf;
+
     serial_write(&ACK, 1);
+
     return 0;
 }
 
 int new_intercom_vol(){
+    LOG("Intercom volume change requested by KRT2");
+
     char buf;
     non_canonical_set(1, 10);
     serial_read(&buf, 1);
+
     _communication->intercom_volume = buf;
+
     serial_write(&ACK, 1);
+
     return 0;
 }
 
 int new_ext_audio_vol(){
+    LOG("External audio input change requested by KRT2");
+
     char buf;
     non_canonical_set(1, 10);
     serial_read(&buf, 1);
+
     _communication->external_input = buf;
+
     serial_write(&ACK, 1);
+
     return 0;
 }
 
 int new_sidetone(){
+    LOG("Sidetone volume change requested by KRT2");
+
     char buf;
     non_canonical_set(1, 10);
     serial_read(&buf, 1);
+
     _communication->sidetone = buf;
+    
     serial_write(&ACK, 1);
+    
     return 0;
 }
 
-int set_active_frequency(unsigned char frequency, unsigned char channel, char name[9]){
+/* Sets new frequency on KRT2 radio 
+  set frequency, channel in their respective arguments
+  put frequency name string of up to 8 characters in 'name'
+  set 'selector' to 0 for active frequency change
+  set 'selector' to 1 for standby frequency change
+  returns 0 on success, -1 on fault and -2 if invalid arguments are provided */
+int set_frequency(unsigned char frequency, unsigned char channel, char name[9], char selector){
+    char* log_msg[2] = {"Active frequency change requested by user", "Standby frequency change requested by user"};
+    LOG(log_msg[selector]);
+
     char buf[13];
 
-    if(frequency < 118) frequency = 118;
-    if(frequency > 136) frequency = 136;
-    if(channel < 0) channel = 0;
-    if(channel > 198) channel = 198;
+    /* Make sure arguments have right values*/
+    if(frequency < 118 || frequency > 136 || channel < 0 || channel > 198) {
+        LOG("Invalid frequency/channel provided");
+        return -2;
+    }
 
     buf[0] = 0x02;
     buf[1] = _ACT_FREQ;
     buf[2] = frequency;
     buf[3] = channel;
-    strcpy(buf+4, name);
+    for(int i = 0; i < 8; i++) {
+        buf[i+4] = name[i];
+    }
     buf[12] = buf[2] ^ buf[3];
 
     CHECKnp(send_data(buf, 13, 3));
 
-    _frequency->active_frequency = frequency;
-    _frequency->active_channel = channel;
-    strcpy(_frequency->active_name, name);
+    struct KRT2_sub_frequency* sub_frequency;
+    sub_frequency = ((selector == 0) ? _act_frequency : _stby_frequency);
+
+    sub_frequency->frequency = frequency;
+    sub_frequency->channel = channel;
+    for(int i = 0; i < 8; i++) {
+        sub_frequency->name[i] = buf[i+4];
+    }
+    
+    LOG("Frequency change succeded");
     return 0;    
 }
 
-int set_stby_frequency(unsigned char frequency, unsigned char channel, char name[9]){
-    char buf[13];
-
-    if(frequency < 118) frequency = 118;
-    if(frequency > 136) frequency = 136;
-    if(channel < 0) channel = 0;
-    if(channel > 198) channel = 198;
-
-    buf[0] = 0x02;
-    buf[1] = _STBY_FREQ;
-    buf[2] = frequency;
-    buf[3] = channel;
-    strcpy(buf+4, name);
-    buf[12] = buf[2] ^ buf[3];
-
-    if(send_data(buf, 13, 3) < 0) return -1;
-
-    _frequency->stby_frequency = frequency;
-    _frequency->stby_channel = channel;
-    strcpy(_frequency->stby_name, name);
-    return 0;    
-}
-
+/* Sets new communication configuration on KRT2 radio
+  (that is volume, squelch and intercom squelch)
+  1 <= volume <= 20
+  1 <= squelch | intercom squelch <= 10
+  returns 0 on success, -1 on fault and -2 if invalid arguments are provided*/
 int set_new_communication_cfg(char volume, char squelch, char intercom_squelch){
+    LOG("Communication configuration change requested by user");
+
     char buf[6];
+
+    /* Check if parametrs are valid */
+    if(volume > 20 || volume < 1 || squelch > 10 || squelch < 1 ||
+    intercom_squelch > 10 || intercom_squelch < 1){
+            LOG("Invalid parameters");
+            return -2;
+    }
 
     buf[0] = 0x02;
     buf[1] = _COMM_CFG;
@@ -302,10 +335,25 @@ int set_new_communication_cfg(char volume, char squelch, char intercom_squelch){
     _communication->squelch = squelch;
     _communication->intercom_squelch = intercom_squelch;
 
+    LOG("Communication configuration change succeded");
+
     return 0;
 }
 
+/* Sets PTT value on KRT2 radio
+  set 'PTT' as follows:
+  0 -> pilot only
+  1 -> copilot only
+  2 -> both
+  returns 0 on success, -1 on fault, -2 if invalid argument is provided*/
 int set_PTT(char PTT){
+    LOG("PTT change requested by user");
+
+    if(PTT < 0 || PTT > 2) {
+        LOG("Invalid argument provided");
+        return -1;
+    }
+
     char buf[3];
     
     buf[0] = 0x02;
@@ -316,10 +364,22 @@ int set_PTT(char PTT){
 
     _communication->PTT = PTT;
 
+    LOG("PTT change succeded");
+
     return 0;
 }
 
+/* Sets new intercom volume
+  1 <= volume <= 9
+  returns 0 on success, -1 on fault, -2 if incorrect arguments are provided */
 int set_intercom_vol(char volume) {
+    LOG("Intercom volume change requested by user");
+
+    if(volume < 1 || volume > 9) {
+        LOG("Invalid argument provided");
+        return -2;
+    }
+
     char buf[3];
 
     buf[0] = 0x02;
@@ -330,43 +390,71 @@ int set_intercom_vol(char volume) {
 
     _communication->intercom_volume = volume;
 
+    LOG("Intercom volume change succeded");
+
     return 0;
 }
 
+/* Sets new external audio input volume
+  0 <= volume <= 9
+  returns 0 on success, -1 on fault, -2 if incorrect arguments are provided */
 int set_ext_audio_vol(char ext_volume) {
+    LOG("External audio input volume change requested by user");
 
-  char buf[3];
+    if(ext_volume < 0 || ext_volume > 9) {
+        LOG("Invalid argument provided");
+        return -2;
+    }
 
-  buf[0] = 0x02; 
-  buf[1] = _EXT_VOL;
-  buf[2] = ext_volume;
+    char buf[3];
 
-  if(send_data(buf, 3, 3) < 0) return -1;
+    buf[0] = 0x02; 
+    buf[1] = _EXT_VOL;
+    buf[2] = ext_volume;
 
-  _communication->external_input = ext_volume;
+    if(send_data(buf, 3, 3) < 0) return -1;
 
-  return 0;
+    _communication->external_input = ext_volume;
+
+    LOG("External audio input volume change succeded");
+
+    return 0;
 }
 
+/* Sets new sidetone
+  1 <= sidetone <= 9
+  returns 0 on success, -1 on fault, -2 if incorrect arguments are provided */
 int set_sidetone(char sidetone) {
+    LOG("Sidetone change requested by user");
 
-  char buf[3];
+    if(sidetone < 1 || sidetone > 9) {
+        LOG("Invalid argument provided");
+        return -2;
+    }
 
-  buf[0] = 0x02;
-  buf[1] = _SIDETONE;
-  buf[2] = sidetone;
+    char buf[3];
 
-  if(send_data(buf, 3, 3) < 0) return -1;
+    buf[0] = 0x02;
+    buf[1] = _SIDETONE;
+    buf[2] = sidetone;
 
-  _communication->sidetone = sidetone;
+    if(send_data(buf, 3, 3) < 0) return -1;
 
-  return 0; 
+    _communication->sidetone = sidetone;
+
+    LOG("Sidetone change succeded");
+
+    return 0; 
 }
 
+/* Sets new channel spacing
+  set spacing to either _SPACING833 or _SPACING25
+  returns 0 on success, -1 on fault, -2 if incorrect arguments are provided */
 int set_spacing(char spacing) {
+    LOG("Channel spacing change requested by user");
     if(spacing != _SPACING25 && spacing != _SPACING833) {
-        PRINT_ERROR_MSG("Invalid spacing value provided");
-        return -1;
+        PRINT_ERROR_MSG("Invalid arguments provided");
+        return -2;
     }
 
     char buf[2];
@@ -378,9 +466,12 @@ int set_spacing(char spacing) {
     
     _communication->spacing=spacing;
 
+    LOG("Channel spacing succeded");
+
     return 0;
 }
 
+/* Returns channel from khz interger */
 unsigned char get_channel(int khz) {
     if(khz > 995) return 198;
     if(khz < 0) return 0;
@@ -391,12 +482,14 @@ unsigned char get_channel(int khz) {
     return channel;
 }
 
+/* Returns khz integer from channel*/
 int get_khz(unsigned char channel) {
     if(channel < 0) return 0;
     if(channel > 198) return 990;
     return channel*5;
 }
 
+/* Returns either "8.33" or "25" based on provided spacing*/
 char* get_spacing_str(char spacing) {
     if(spacing == _SPACING25) {
         return "25";
@@ -409,10 +502,10 @@ char* get_spacing_str(char spacing) {
   to how many attempts of writes to make
   If ACK response is not required set 'max_attempts' to 0 */
 int send_data(char* buf, int size, int max_attempts) {
+    #ifndef TEST
     char response = 0;
     int attempts = 0;
     
-    #ifndef TEST
     if(max_attempts > 0){
         LOG("Setting non canonical reads to 0|10");
         CHECK(non_canonical_set(0,10));

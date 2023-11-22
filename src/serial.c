@@ -8,6 +8,10 @@ struct termios tty;
  returns 0 on success and -1 on fault */
 int serial_init(char* file, int baud) {
 
+    char log_buf[50];
+    snprintf(log_buf, 50, "Initializing serial port %s", file);
+    LOG(log_buf);
+
     CHECKa(open(file, O_RDWR | O_NOCTTY), &serial_port);
 
     tty.c_cflag |= (CLOCAL | CREAD);
@@ -28,6 +32,8 @@ int serial_init(char* file, int baud) {
 
     CHECK(tcsetattr(serial_port, TCSANOW, &tty));
 
+    LOG("Serial port initialization succeded");
+
     return 0;
 }
 
@@ -37,6 +43,7 @@ int serial_init(char* file, int baud) {
   refer to termios manual for more info 
   returns 0 on success and -1 on fault */
 int non_canonical_set(int min_bytes, int max_time) {
+
     tty.c_cc[VTIME] = max_time;
     tty.c_cc[VMIN] = min_bytes;
     
@@ -52,6 +59,9 @@ int serial_write(char* msg, int size) {
 
     int n_bytes;
     CHECKa(write(serial_port, msg, size), &n_bytes);
+
+    if(n_bytes != size){LOG("Sent less data than required");}
+
     return n_bytes;
 
 }
@@ -65,6 +75,7 @@ int serial_read(char* buf, int buf_size) {
 
     int n_bytes;
     CHECKa(read(serial_port, buf, buf_size), &n_bytes);
+
     return n_bytes;
 
 }
@@ -80,6 +91,7 @@ int serial_readB(char* buf) {
 void serial_end() {
 
     close(serial_port);
+    LOG("Serial port closed");
 
 }
 

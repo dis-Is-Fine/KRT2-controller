@@ -19,7 +19,7 @@ long checksum = 0;
 void exitf(); int set_instant_stdin(char instant);
 void print_status(); void print_choice();
 int main_loop(); int radio_set();
-int set_frequency(char selector);
+int set_radio_frequency(char selector);
 int set_volume(); int set_other();
 
 int main(){
@@ -63,6 +63,7 @@ void exitf() {
     #endif
     printf("%s%s", _SHOW_CURSOR, _CLEAR_SCREEN);
     set_instant_stdin(0);
+    serial_end();
 }
 
 int main_loop(){
@@ -91,10 +92,10 @@ int radio_set() {
     printf("%s", _CLEAR_SCREEN);
     print_choice();
     switch(last_pressed) {
-        case 'A': CHECKnp(set_frequency(0)); break;
-        case 'a': CHECKnp(set_frequency(0)); break;
-        case 'B': CHECKnp(set_frequency(1)); break;
-        case 'b': CHECKnp(set_frequency(1)); break;
+        case 'A': CHECKnp(set_radio_frequency(0)); break;
+        case 'a': CHECKnp(set_radio_frequency(0)); break;
+        case 'B': CHECKnp(set_radio_frequency(1)); break;
+        case 'b': CHECKnp(set_radio_frequency(1)); break;
         case 'C': CHECKnp(set_volume()); break;
         case 'c': CHECKnp(set_volume()); break;
         case 'D': CHECKnp(set_other()); break;
@@ -148,7 +149,7 @@ void print_choice() {
     }
 }
 
-int set_frequency(char selector){
+int set_radio_frequency(char selector){
     char buf[10] = {0};
     unsigned char freq = 0; unsigned char channel = 0;
 
@@ -164,11 +165,8 @@ int set_frequency(char selector){
     memset(buf, 0, 10);
     printf("Enter frequency name: ");
     scanf("%8[^\n]s", buf);
-    if(selector == 0){
-        CHECKnp(set_active_frequency(freq, channel, buf));
-        return 0;
-    }
-    CHECK(set_stby_frequency(freq, channel, buf));
+    CHECKnp(set_frequency(freq, channel, buf, selector));
+    CHECK(set_frequency(freq, channel, buf, selector));
     return 0;
 }
 
